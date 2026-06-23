@@ -433,8 +433,9 @@ $("saveWatchlist").onclick = async () => {
         sha, branch: s.branch,
       }),
     });
-    setStatus("✓ Gespeichert. Beim nächsten Lauf aktiv (oder per 'Jetzt prüfen').", "ok");
+    setStatus("Speichere …");
     await reloadAll();
+    setStatus("✓ Watchlist in GitHub gespeichert. Der Editor zeigt jetzt den gespeicherten Stand. Neue Titel erscheinen in der Übersicht erst nach dem nächsten Lauf (oder per 'Jetzt prüfen').", "ok");
   } catch (e) {
     setStatus("Speichern fehlgeschlagen: " + e.message, "bad");
   }
