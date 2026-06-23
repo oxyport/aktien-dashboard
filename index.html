@@ -127,7 +127,7 @@
       <span id="dirty" class="hidden" style="color:var(--amber);font-weight:700;font-size:0.85rem;">● Ungespeicherte Änderungen</span>
     </div>
     <p class="sub">Speichern schreibt <code>watchlist.yaml</code> direkt ins Repo. Der naechste
-      geplante Lauf (alle 30 Min) nutzt dann die neuen Trigger – oder klicke „Jetzt prüfen".</p>
+      geplante Lauf (alle 10 Min) nutzt dann die neuen Trigger – oder klicke „Jetzt prüfen".</p>
   </div>
 
 <script>
@@ -533,8 +533,8 @@ async function refreshOverview() {
     renderOverview(JSON.parse(data.text));
   } catch (e) { /* Netzwerk-/Cache-Aussetzer ignorieren, alte Anzeige behalten */ }
 }
-// Alle 30 Min automatisch aktualisieren (passend zum Workflow-Takt).
-setInterval(() => { if (!document.hidden) refreshOverview(); }, 30 * 60 * 1000);
+// Alle 10 Min automatisch aktualisieren (passend zum Workflow-Takt).
+setInterval(() => { if (!document.hidden) refreshOverview(); }, 10 * 60 * 1000);
 // Sofort aktualisieren, sobald die Seite wieder in den Vordergrund kommt.
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshOverview(); });
 
