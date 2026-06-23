@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aktien-Watchlist Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2029; --panel2: #232b36; --border: #2e3744;
+    --text: #e6edf3; --muted: #8b97a7; --accent: #4d9fff;
+    --green: #2ea043; --amber: #d29922; --red: #f85149; --grey: #6e7681;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.45; padding: 16px;
+    max-width: 960px; margin: 0 auto;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 24px 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin: 8px 0 3px; }
+  input, select {
+    width: 100%; padding: 8px 10px; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 7px; font-size: 0.95rem;
+  }
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 7px;
+    padding: 9px 14px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  }
+  button.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); padding: 5px 9px; font-size: 0.8rem; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 0 0 auto; }
+  .grow { flex: 1 1 120px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .card.err { border-color: var(--red); }
+  .stock-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .stock-name { font-size: 1.1rem; font-weight: 700; }
+  .ticker { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+  .price { font-size: 1.25rem; font-weight: 700; }
+  .metrics { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 0.82rem; margin: 6px 0 10px; }
+  .metrics b { color: var(--text); font-weight: 600; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .trig { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 0.88rem; }
+  .trig-main { flex: 1; }
+  .trig-note { color: var(--muted); font-size: 0.8rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+  .b-armed { background: rgba(46,160,67,0.18); color: var(--green); }
+  .b-met   { background: rgba(248,81,73,0.18); color: var(--red); }
+  .b-fired { background: rgba(210,153,34,0.18); color: var(--amber); }
+  .b-none  { background: rgba(110,118,129,0.2); color: var(--grey); }
+  .editor-trig { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; }
+  .cond { display: flex; gap: 6px; align-items: center; margin: 5px 0; }
+  .hidden { display: none; }
+  #status { font-size: 0.85rem; padding: 8px 0; min-height: 1.2em; }
+  .ok { color: var(--green); } .warn { color: var(--amber); } .bad { color: var(--red); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+  a { color: var(--accent); }
+  .tabbar { display: flex; gap: 8px; margin: 8px 0 16px; }
+  .tabbar button { background: var(--panel2); color: var(--muted); border: 1px solid var(--border); }
+  .tabbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+</style>
+</head>
+<body>
+  <h1>📈 Aktien-Watchlist</h1>
+  <div class="sub" id="standInfo">Noch nicht geladen.</div>
+
+  <details id="settings" class="panel">
+    <summary>⚙️ Verbindung &amp; Token</summary>
+    <label>GitHub-Repo (owner/repo)</label>
+    <input id="repo" placeholder="oxyport/aktien-watchlist" />
+    <label>Branch</label>
+    <input id="branch" placeholder="main" />
+    <label>Personal Access Token (fine-grained, Contents: read/write; optional Actions: read/write)</label>
+    <input id="token" type="password" placeholder="github_pat_..." />
+    <div class="row" style="margin-top:10px;">
+      <button id="saveSettings">Speichern</button>
+      <button class="secondary" id="forgetToken">Token vergessen</button>
+    </div>
+    <p class="sub" style="margin-top:10px;">
+      Der Token wird ausschliesslich in deinem Browser (localStorage) gespeichert und direkt an die
+      GitHub-API gesendet. Erstelle ihn unter GitHub &rarr; Settings &rarr; Developer settings &rarr;
+      Fine-grained tokens, beschraenkt auf dieses eine Repo.
+    </p>
+  </details>
+
+  <div class="tabbar">
+    <button id="tabOverview" class="active">Übersicht</button>
+    <button id="tabEdit">Trigger bearbeiten</button>
+  </div>
+
+  <div class="row" style="margin-bottom:12px;">
+    <button id="reload" class="secondary">🔄 Neu laden</button>
+    <button id="runCheck" class="secondary">▶️ Jetzt prüfen</button>
+  </div>
+
+  <div id="status"></div>
+
+  <!-- Übersicht -->
+  <div id="viewOverview">
+    <div id="overview"></div>
+  </div>
+
+  <!-- Editor -->
+  <div id="viewEdit" class="hidden">
+    <h2>Watchlist bearbeiten</h2>
+    <div id="editor"></div>
+    <div class="row" style="margin-top:14px;">
+      <button id="addStock" class="secondary">+ Aktie</button>
+      <button id="saveWatchlist">💾 In GitHub speichern</button>
+    </div>
+    <p class="sub">Speichern schreibt <code>watchlist.yaml</code> direkt ins Repo. Der naechste
+      geplante Lauf (alle 30 Min) nutzt dann die neuen Trigger – oder klicke „Jetzt prüfen".</p>
+  </div>
+
+<script>
+const TRIGGER_TYPEN = {
+  kurs_unter: "Kurs unter (Preis)",
+  kurs_ueber: "Kurs über (Preis)",
+  pct_unter_52w_hoch: "% unter 52W-Hoch",
+  tagesaenderung: "Tagesänderung % (±)",
+  kombi: "Kombi (UND)",
+};
+const COND_TYPEN = { // ohne kombi (keine Verschachtelung)
+  kurs_unter: "Kurs unter", kurs_ueber: "Kurs über",
+  pct_unter_52w_hoch: "% unter 52W-Hoch", tagesaenderung: "Tagesänderung %",
+};
+
+const $ = (id) => document.getElementById(id);
+let watchlist = { aktien: [] };   // Arbeitskopie fuer den Editor
+let watchlistSha = null;
+
+// ---------- Einstellungen ----------
+function loadSettings() {
+  $("repo").value = localStorage.getItem("wl_repo") || "oxyport/aktien-watchlist";
+  $("branch").value = localStorage.getItem("wl_branch") || "main";
+  $("token").value = localStorage.getItem("wl_token") || "";
+}
+function settings() {
+  return {
+    repo: ($("repo").value || "").trim(),
+    branch: ($("branch").value || "main").trim(),
+    token: ($("token").value || "").trim(),
+  };
+}
+$("saveSettings").onclick = () => {
+  const s = settings();
+  localStorage.setItem("wl_repo", s.repo);
+  localStorage.setItem("wl_branch", s.branch);
+  localStorage.setItem("wl_token", s.token);
+  setStatus("Einstellungen gespeichert.", "ok");
+  reloadAll();
+};
+$("forgetToken").onclick = () => {
+  localStorage.removeItem("wl_token"); $("token").value = "";
+  setStatus("Token entfernt.", "warn");
+};
+
+function setStatus(msg, cls = "") { const el = $("status"); el.textContent = msg; el.className = cls; }
+
+// ---------- GitHub-API ----------
+function b64DecodeUnicode(str) {
+  const bin = atob(str.replace(/\s/g, ""));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
+}
+function b64EncodeUnicode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = ""; bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
+}
+async function gh(path, opts = {}) {
+  const s = settings();
+  if (!s.repo || !s.token) throw new Error("Repo oder Token fehlt (siehe ⚙️).");
+  const res = await fetch(`https://api.github.com/repos/${s.repo}${path}`, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${s.token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).message || detail; } catch (e) {}
+    throw new Error(`GitHub ${res.status}: ${detail}`);
+  }
+  return res;
+}
+async function getFile(path) {
+  const s = settings();
+  const res = await gh(`/contents/${path}?ref=${encodeURIComponent(s.branch)}`);
+  const j = await res.json();
+  return { text: b64DecodeUnicode(j.content), sha: j.sha };
+}
+
+// ---------- Laden ----------
+async function reloadAll() {
+  setStatus("Lade …");
+  try {
+    const data = await getFile("docs/data.json");
+    renderOverview(JSON.parse(data.text));
+  } catch (e) {
+    $("overview").innerHTML = `<div class="card err">Snapshot (docs/data.json) noch nicht verfügbar.
+      Starte zuerst den Workflow „Watchlist-Check". <br><span class="sub">${e.message}</span></div>`;
+    $("standInfo").textContent = "—";
+  }
+  try {
+    const wl = await getFile("watchlist.yaml");
+    watchlist = jsyaml.load(wl.text) || { aktien: [] };
+    if (!watchlist.aktien) watchlist.aktien = [];
+    watchlistSha = wl.sha;
+    renderEditor();
+    setStatus("Geladen.", "ok");
+  } catch (e) {
+    setStatus("watchlist.yaml konnte nicht geladen werden: " + e.message, "bad");
+  }
+}
+
+// ---------- Übersicht ----------
+function fmt(n, d = 2) {
+  if (n === null || n === undefined) return "–";
+  return Number(n).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function condText(c) {
+  const v = c.wert;
+  switch (c.typ) {
+    case "kurs_unter": return `Kurs ≤ ${fmt(v)}`;
+    case "kurs_ueber": return `Kurs ≥ ${fmt(v)}`;
+    case "pct_unter_52w_hoch": return `≥ ${v}% unter 52W-Hoch`;
+    case "tagesaenderung": return `Tagesänderung ${v > 0 ? "≥ +" : "≤ "}${v}%`;
+    default: return c.typ;
+  }
+}
+function statusBadge(t) {
+  if (t.erfuellt === null) return `<span class="badge b-none">keine Daten</span>`;
+  if (t.gefeuert && t.erfuellt) return `<span class="badge b-fired">🔔 gemeldet</span>`;
+  if (t.erfuellt) return `<span class="badge b-met">erfüllt</span>`;
+  return `<span class="badge b-armed">scharf</span>`;
+}
+function renderOverview(snap) {
+  $("standInfo").textContent = "Stand: " + new Date(snap.stand_utc).toLocaleString("de-DE") + " (letzter Lauf)";
+  const root = $("overview"); root.innerHTML = "";
+  if (!snap.aktien || !snap.aktien.length) { root.innerHTML = `<div class="card">Keine Aktien.</div>`; return; }
+  for (const a of snap.aktien) {
+    const dc = a.daily_change_pct;
+    const dcCls = dc == null ? "" : dc >= 0 ? "pos" : "neg";
+    let trigs = "";
+    (a.trigger || []).forEach((t) => {
+      let body;
+      if (t.typ === "kombi") {
+        const subs = (t.bedingungen || []).map((c) =>
+          `${c.erfuellt ? "✓" : "·"} ${condText(c)}`).join(" &nbsp; ");
+        body = `<b>Kombi (UND):</b> ${subs}`;
+      } else {
+        body = `<b>${TRIGGER_TYPEN[t.typ] || t.typ}:</b> ${condText({ typ: t.typ, wert: t.wert })}`;
+      }
+      trigs += `<div class="trig"><div class="trig-main">${body}
+        ${t.notiz ? `<div class="trig-note">– ${t.notiz}</div>` : ""}</div>
+        <div>${statusBadge(t)}</div></div>`;
+    });
+    root.insertAdjacentHTML("beforeend", `
+      <div class="card ${a.fehler ? "err" : ""}">
+        <div class="stock-head">
+          <div><span class="stock-name">${a.name}</span> <span class="ticker">${a.symbol}</span></div>
+          <div class="price">${a.fehler ? "⚠️ keine Daten" : fmt(a.price)}</div>
+        </div>
+        ${a.fehler ? "" : `<div class="metrics">
+          <span>52W-Hoch: <b>${fmt(a.high_52w)}</b></span>
+          <span>unter Hoch: <b>${fmt(a.pct_below_52w_high, 1)}%</b></span>
+          <span>Tag: <b class="${dcCls}">${dc == null ? "–" : (dc >= 0 ? "+" : "") + fmt(dc, 2) + "%"}</b></span>
+        </div>`}
+        ${trigs}
+      </div>`);
+  }
+}
+
+// ---------- Editor ----------
+function renderEditor() {
+  const root = $("editor"); root.innerHTML = "";
+  watchlist.aktien.forEach((a, ai) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="row">
+        <div class="grow"><label>Symbol (yfinance)</label>
+          <input value="${a.symbol || ""}" data-ai="${ai}" data-f="symbol" /></div>
+        <div class="grow"><label>Name</label>
+          <input value="${a.name || ""}" data-ai="${ai}" data-f="name" /></div>
+        <button class="danger" data-delstock="${ai}" style="align-self:flex-end;">Aktie löschen</button>
+      </div>
+      <div data-trigs="${ai}"></div>
+      <button class="secondary" data-addtrig="${ai}" style="margin-top:8px;">+ Trigger</button>`;
+    root.appendChild(card);
+    const tcont = card.querySelector(`[data-trigs="${ai}"]`);
+    (a.trigger || []).forEach((t, ti) => tcont.appendChild(triggerEditor(ai, ti, t)));
+  });
+  bindEditor();
+}
+function triggerEditor(ai, ti, t) {
+  const box = document.createElement("div");
+  box.className = "editor-trig";
+  const isKombi = t.typ === "kombi";
+  const opts = Object.entries(TRIGGER_TYPEN).map(([k, v]) =>
+    `<option value="${k}" ${t.typ === k ? "selected" : ""}>${v}</option>`).join("");
+  box.innerHTML = `
+    <div class="row">
+      <div class="grow"><label>Typ</label>
+        <select data-ai="${ai}" data-ti="${ti}" data-f="typ">${opts}</select></div>
+      <div class="grow" data-wertbox style="${isKombi ? "display:none;" : ""}">
+        <label>Wert</label>
+        <input type="number" step="any" value="${t.wert ?? ""}" data-ai="${ai}" data-ti="${ti}" data-f="wert" /></div>
+      <button class="danger" data-deltrig="${ai}:${ti}" style="align-self:flex-end;">×</button>
+    </div>
+    <label>Notiz</label>
+    <input value="${(t.notiz || "").replace(/"/g, "&quot;")}" data-ai="${ai}" data-ti="${ti}" data-f="notiz" />
+    <div data-kombibox="${ai}:${ti}" style="${isKombi ? "" : "display:none;"} margin-top:8px;">
+      <label>Bedingungen (alle müssen erfüllt sein)</label>
+      <div data-conds="${ai}:${ti}"></div>
+      <button class="secondary" data-addcond="${ai}:${ti}">+ Bedingung</button>
+    </div>`;
+  if (isKombi) {
+    const cc = box.querySelector(`[data-conds="${ai}:${ti}"]`);
+    (t.bedingungen || []).forEach((c, ci) => cc.appendChild(condEditor(ai, ti, ci, c)));
+  }
+  return box;
+}
+function condEditor(ai, ti, ci, c) {
+  const div = document.createElement("div");
+  div.className = "cond";
+  const opts = Object.entries(COND_TYPEN).map(([k, v]) =>
+    `<option value="${k}" ${c.typ === k ? "selected" : ""}>${v}</option>`).join("");
+  div.innerHTML = `
+    <select data-cai="${ai}" data-cti="${ti}" data-cci="${ci}" data-cf="typ" class="grow">${opts}</select>
+    <input type="number" step="any" value="${c.wert ?? ""}" data-cai="${ai}" data-cti="${ti}" data-cci="${ci}" data-cf="wert" class="grow" placeholder="Wert" />
+    <button class="danger" data-delcond="${ai}:${ti}:${ci}">×</button>`;
+  return div;
+}
+function bindEditor() {
+  // Feldaenderungen (Aktie + Trigger)
+  $("editor").querySelectorAll("[data-f]").forEach((el) => {
+    el.oninput = () => {
+      const ai = +el.dataset.ai, ti = el.dataset.ti, f = el.dataset.f;
+      let val = el.value;
+      if (f === "wert") val = val === "" ? null : parseFloat(val);
+      if (ti === undefined) watchlist.aktien[ai][f] = val;
+      else {
+        const t = watchlist.aktien[ai].trigger[+ti];
+        t[f] = val;
+        if (f === "typ") { normalizeTrigger(t); renderEditor(); }
+      }
+    };
+  });
+  // Bedingungs-Felder
+  $("editor").querySelectorAll("[data-cf]").forEach((el) => {
+    el.oninput = () => {
+      const a = +el.dataset.cai, t = +el.dataset.cti, c = +el.dataset.cci, f = el.dataset.cf;
+      let val = el.value; if (f === "wert") val = val === "" ? null : parseFloat(val);
+      watchlist.aktien[a].trigger[t].bedingungen[c][f] = val;
+    };
+  });
+  const click = (sel, fn) => $("editor").querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));
+  click("[data-delstock]", (b) => { watchlist.aktien.splice(+b.dataset.delstock, 1); renderEditor(); });
+  click("[data-addtrig]", (b) => {
+    watchlist.aktien[+b.dataset.addtrig].trigger.push({ typ: "kurs_unter", wert: 0, notiz: "" });
+    renderEditor();
+  });
+  click("[data-deltrig]", (b) => {
+    const [ai, ti] = b.dataset.deltrig.split(":").map(Number);
+    watchlist.aktien[ai].trigger.splice(ti, 1); renderEditor();
+  });
+  click("[data-addcond]", (b) => {
+    const [ai, ti] = b.dataset.addcond.split(":").map(Number);
+    watchlist.aktien[ai].trigger[ti].bedingungen.push({ typ: "kurs_unter", wert: 0 });
+    renderEditor();
+  });
+  click("[data-delcond]", (b) => {
+    const [ai, ti, ci] = b.dataset.delcond.split(":").map(Number);
+    watchlist.aktien[ai].trigger[ti].bedingungen.splice(ci, 1); renderEditor();
+  });
+}
+function normalizeTrigger(t) {
+  if (t.typ === "kombi") {
+    delete t.wert;
+    if (!t.bedingungen) t.bedingungen = [{ typ: "kurs_unter", wert: 0 }];
+  } else {
+    delete t.bedingungen;
+    if (t.wert === undefined || t.wert === null) t.wert = 0;
+  }
+}
+$("addStock").onclick = () => {
+  watchlist.aktien.push({ symbol: "", name: "", trigger: [{ typ: "kurs_unter", wert: 0, notiz: "" }] });
+  renderEditor();
+};
+
+// ---------- Speichern ----------
+$("saveWatchlist").onclick = async () => {
+  setStatus("Speichere watchlist.yaml …");
+  try {
+    watchlist.aktien.forEach((a) => (a.trigger || []).forEach(normalizeTrigger));
+    const yamlText = jsyaml.dump(watchlist, { indent: 2, lineWidth: -1, noRefs: true });
+    const s = settings();
+    // frischen sha holen (Konflikte vermeiden)
+    let sha = watchlistSha;
+    try { sha = (await getFile("watchlist.yaml")).sha; } catch (e) {}
+    await gh(`/contents/watchlist.yaml`, {
+      method: "PUT",
+      body: JSON.stringify({
+        message: "Watchlist via Dashboard aktualisiert",
+        content: b64EncodeUnicode(yamlText),
+        sha, branch: s.branch,
+      }),
+    });
+    setStatus("✓ Gespeichert. Beim nächsten Lauf aktiv (oder „Jetzt prüfen").", "ok");
+    await reloadAll();
+  } catch (e) {
+    setStatus("Speichern fehlgeschlagen: " + e.message, "bad");
+  }
+};
+
+// ---------- Workflow anstossen ----------
+$("runCheck").onclick = async () => {
+  setStatus("Starte Workflow …");
+  try {
+    const s = settings();
+    await gh(`/actions/workflows/check.yml/dispatches`, {
+      method: "POST",
+      body: JSON.stringify({ ref: s.branch }),
+    });
+    setStatus("✓ Workflow gestartet. Daten in ~1–2 Min aktualisiert – dann „Neu laden".", "ok");
+  } catch (e) {
+    setStatus("Workflow-Start fehlgeschlagen (Token braucht Actions: read/write): " + e.message, "bad");
+  }
+};
+
+// ---------- Tabs ----------
+$("tabOverview").onclick = () => switchTab("Overview");
+$("tabEdit").onclick = () => switchTab("Edit");
+function switchTab(which) {
+  $("viewOverview").classList.toggle("hidden", which !== "Overview");
+  $("viewEdit").classList.toggle("hidden", which !== "Edit");
+  $("tabOverview").classList.toggle("active", which === "Overview");
+  $("tabEdit").classList.toggle("active", which === "Edit");
+}
+
+$("reload").onclick = reloadAll;
+
+// ---------- Start ----------
+loadSettings();
+if (settings().token) reloadAll();
+else { setStatus("Bitte Token unter ⚙️ eintragen.", "warn"); $("settings").open = true; }
+</script>
+</body>
+</html>
