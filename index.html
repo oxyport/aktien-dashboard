@@ -112,6 +112,7 @@
     <div class="row" style="margin-top:14px;">
       <button id="addStock" class="secondary">+ Aktie</button>
       <button id="saveWatchlist">💾 In GitHub speichern</button>
+      <button id="cancelEdit" class="secondary">✖ Abbrechen</button>
       <span id="dirty" class="hidden" style="color:var(--amber);font-weight:700;font-size:0.85rem;">● Ungespeicherte Änderungen</span>
     </div>
     <p class="sub">Speichern schreibt <code>watchlist.yaml</code> direkt ins Repo. Der naechste
@@ -434,6 +435,11 @@ function normalizeTrigger(t) {
 $("addStock").onclick = () => {
   watchlist.aktien.push({ symbol: "", name: "", trigger: [{ typ: "kurs_unter", wert: 0, notiz: "" }] });
   setDirty(true); renderEditor();
+};
+$("cancelEdit").onclick = async () => {
+  if (dirty && !confirm("Ungespeicherte Änderungen verwerfen und den gespeicherten Stand neu laden?")) return;
+  await reloadAll();
+  setStatus("Änderungen verworfen – gespeicherter Stand geladen.", "ok");
 };
 
 // ---------- Speichern ----------
