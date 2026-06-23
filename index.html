@@ -509,6 +509,21 @@ function switchTab(which) {
 
 $("reload").onclick = reloadAll;
 
+// ---------- Auto-Aktualisierung ----------
+// Holt NUR die Uebersicht (docs/data.json) neu – ruehrt den Editor und
+// ungespeicherte Aenderungen nicht an. Laeuft still im Hintergrund.
+async function refreshOverview() {
+  if (!settings().token) return;
+  try {
+    const data = await getFile("docs/data.json");
+    renderOverview(JSON.parse(data.text));
+  } catch (e) { /* Netzwerk-/Cache-Aussetzer ignorieren, alte Anzeige behalten */ }
+}
+// Alle 30 Min automatisch aktualisieren (passend zum Workflow-Takt).
+setInterval(() => { if (!document.hidden) refreshOverview(); }, 30 * 60 * 1000);
+// Sofort aktualisieren, sobald die Seite wieder in den Vordergrund kommt.
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshOverview(); });
+
 // ---------- Start ----------
 loadSettings();
 if (settings().token) reloadAll();
