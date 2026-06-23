@@ -63,14 +63,25 @@
   .tabbar { display: flex; gap: 8px; margin: 8px 0 16px; }
   .tabbar button { background: var(--panel2); color: var(--muted); border: 1px solid var(--border); }
   .tabbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #gear { position: fixed; top: 10px; right: 10px; z-index: 20; width: 40px; height: 40px;
+    border-radius: 50%; padding: 0; font-size: 1.15rem; background: var(--panel2);
+    color: var(--text); border: 1px solid var(--border); display: flex;
+    align-items: center; justify-content: center; line-height: 1; }
+  #gear:hover { border-color: var(--accent); }
+  #settings { position: fixed; top: 58px; right: 10px; z-index: 19; width: 360px;
+    max-width: calc(100vw - 20px); box-shadow: 0 10px 30px rgba(0,0,0,0.55); }
 </style>
 </head>
 <body>
+  <button id="gear" title="Verbindung &amp; Token" aria-label="Einstellungen">⚙️</button>
   <h1>📈 Aktien-Watchlist</h1>
   <div class="sub" id="standInfo">Noch nicht geladen.</div>
 
-  <details id="settings" class="panel">
-    <summary>⚙️ Verbindung &amp; Token</summary>
+  <div id="settings" class="panel hidden">
+    <div class="row" style="justify-content:space-between;">
+      <strong>Verbindung &amp; Token</strong>
+      <button class="secondary" id="closeSettings" style="padding:4px 10px;">✕</button>
+    </div>
     <label>GitHub-Repo (owner/repo)</label>
     <input id="repo" placeholder="oxyport/aktien-watchlist" />
     <label>Branch</label>
@@ -86,7 +97,7 @@
       GitHub-API gesendet. Erstelle ihn unter GitHub &rarr; Settings &rarr; Developer settings &rarr;
       Fine-grained tokens, beschraenkt auf dieses eine Repo.
     </p>
-  </details>
+  </div>
 
   <div class="tabbar">
     <button id="tabOverview" class="active">Übersicht</button>
@@ -183,12 +194,15 @@ $("saveSettings").onclick = () => {
   const ok2 = store.set("wl_token", s.token);
   if (ok1 && ok2) setStatus("Einstellungen gespeichert.", "ok");
   else setStatus("Hinweis: Browser blockiert dauerhaftes Speichern – gilt nur für diese Sitzung.", "warn");
+  $("settings").classList.add("hidden");
   reloadAll();
 };
 $("forgetToken").onclick = () => {
   store.del("wl_token"); $("token").value = "";
   setStatus("Token entfernt.", "warn");
 };
+$("gear").onclick = () => $("settings").classList.toggle("hidden");
+$("closeSettings").onclick = () => $("settings").classList.add("hidden");
 
 function setStatus(msg, cls = "") { const el = $("status"); el.textContent = msg; el.className = cls; }
 
@@ -527,7 +541,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) refr
 // ---------- Start ----------
 loadSettings();
 if (settings().token) reloadAll();
-else { setStatus("Bitte Token unter ⚙️ eintragen.", "warn"); $("settings").open = true; }
+else { setStatus("Bitte Token unter ⚙️ (oben rechts) eintragen.", "warn"); $("settings").classList.remove("hidden"); }
 </script>
 </body>
 </html>
