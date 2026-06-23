@@ -112,6 +112,7 @@
     <div class="row" style="margin-top:14px;">
       <button id="addStock" class="secondary">+ Aktie</button>
       <button id="saveWatchlist">💾 In GitHub speichern</button>
+      <span id="dirty" class="hidden" style="color:var(--amber);font-weight:700;font-size:0.85rem;">● Ungespeicherte Änderungen</span>
     </div>
     <p class="sub">Speichern schreibt <code>watchlist.yaml</code> direkt ins Repo. Der naechste
       geplante Lauf (alle 30 Min) nutzt dann die neuen Trigger – oder klicke „Jetzt prüfen".</p>
@@ -133,10 +134,21 @@ const COND_TYPEN = { // ohne kombi (keine Verschachtelung)
 const $ = (id) => document.getElementById(id);
 let watchlist = { aktien: [] };   // Arbeitskopie fuer den Editor
 let watchlistSha = null;
+let dirty = false;                // ungespeicherte Editor-Aenderungen?
+function setDirty(v) {
+  dirty = v;
+  const ind = $("dirty");
+  if (ind) ind.classList.toggle("hidden", !v);
+}
 
 // Jeden unbehandelten Fehler sichtbar machen (statt "es passiert nichts").
 window.addEventListener("error", (e) => {
   try { setStatus("JS-Fehler: " + (e.message || e), "bad"); } catch (_) {}
+});
+
+// Vor versehentlichem Verlust ungespeicherter Aenderungen warnen.
+window.addEventListener("beforeunload", (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ""; }
 });
 
 // Robuster Speicher: faellt auf In-Memory zurueck, wenn localStorage blockiert
@@ -233,6 +245,7 @@ async function reloadAll() {
     if (!watchlist.aktien) watchlist.aktien = [];
     watchlistSha = wl.sha;
     renderEditor();
+    setDirty(false);
     setStatus("Geladen.", "ok");
   } catch (e) {
     setStatus("watchlist.yaml konnte nicht geladen werden: " + e.message, "bad");
@@ -371,6 +384,7 @@ function bindEditor() {
         t[f] = val;
         if (f === "typ") { normalizeTrigger(t); renderEditor(); }
       }
+      setDirty(true);
     };
   });
   // Bedingungs-Felder
@@ -379,26 +393,33 @@ function bindEditor() {
       const a = +el.dataset.cai, t = +el.dataset.cti, c = +el.dataset.cci, f = el.dataset.cf;
       let val = el.value; if (f === "wert") val = val === "" ? null : parseFloat(val);
       watchlist.aktien[a].trigger[t].bedingungen[c][f] = val;
+      setDirty(true);
     };
   });
   const click = (sel, fn) => $("editor").querySelectorAll(sel).forEach((b) => (b.onclick = () => fn(b)));
-  click("[data-delstock]", (b) => { watchlist.aktien.splice(+b.dataset.delstock, 1); renderEditor(); });
+  click("[data-delstock]", (b) => {
+    const ai = +b.dataset.delstock;
+    const a = watchlist.aktien[ai];
+    const label = (a && (a.name || a.symbol)) || "diese Aktie";
+    if (!confirm("„" + label + "“ wirklich aus der Watchlist löschen?\n\nDie Löschung wird erst mit „In GitHub speichern“ übernommen.")) return;
+    watchlist.aktien.splice(ai, 1); setDirty(true); renderEditor();
+  });
   click("[data-addtrig]", (b) => {
     watchlist.aktien[+b.dataset.addtrig].trigger.push({ typ: "kurs_unter", wert: 0, notiz: "" });
-    renderEditor();
+    setDirty(true); renderEditor();
   });
   click("[data-deltrig]", (b) => {
     const [ai, ti] = b.dataset.deltrig.split(":").map(Number);
-    watchlist.aktien[ai].trigger.splice(ti, 1); renderEditor();
+    watchlist.aktien[ai].trigger.splice(ti, 1); setDirty(true); renderEditor();
   });
   click("[data-addcond]", (b) => {
     const [ai, ti] = b.dataset.addcond.split(":").map(Number);
     watchlist.aktien[ai].trigger[ti].bedingungen.push({ typ: "kurs_unter", wert: 0 });
-    renderEditor();
+    setDirty(true); renderEditor();
   });
   click("[data-delcond]", (b) => {
     const [ai, ti, ci] = b.dataset.delcond.split(":").map(Number);
-    watchlist.aktien[ai].trigger[ti].bedingungen.splice(ci, 1); renderEditor();
+    watchlist.aktien[ai].trigger[ti].bedingungen.splice(ci, 1); setDirty(true); renderEditor();
   });
 }
 function normalizeTrigger(t) {
@@ -412,11 +433,13 @@ function normalizeTrigger(t) {
 }
 $("addStock").onclick = () => {
   watchlist.aktien.push({ symbol: "", name: "", trigger: [{ typ: "kurs_unter", wert: 0, notiz: "" }] });
-  renderEditor();
+  setDirty(true); renderEditor();
 };
 
 // ---------- Speichern ----------
 $("saveWatchlist").onclick = async () => {
+  const btn = $("saveWatchlist");
+  btn.disabled = true;
   setStatus("Speichere watchlist.yaml …");
   try {
     watchlist.aktien.forEach((a) => (a.trigger || []).forEach(normalizeTrigger));
@@ -433,11 +456,13 @@ $("saveWatchlist").onclick = async () => {
         sha, branch: s.branch,
       }),
     });
-    setStatus("Speichere …");
     await reloadAll();
-    setStatus("✓ Watchlist in GitHub gespeichert. Der Editor zeigt jetzt den gespeicherten Stand. Neue Titel erscheinen in der Übersicht erst nach dem nächsten Lauf (oder per 'Jetzt prüfen').", "ok");
+    setDirty(false);
+    setStatus("✓ Watchlist in GitHub gespeichert. Der Editor zeigt jetzt den gespeicherten Stand. Neue/gelöschte Titel erscheinen in der Übersicht erst nach dem nächsten Lauf (oder per 'Jetzt prüfen').", "ok");
   } catch (e) {
     setStatus("Speichern fehlgeschlagen: " + e.message, "bad");
+  } finally {
+    btn.disabled = false;
   }
 };
 
