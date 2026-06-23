@@ -258,11 +258,20 @@ function fmt(n, d = 2) {
   if (n === null || n === undefined) return "–";
   return Number(n).toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-function condText(c) {
+function curSym(code) {
+  const m = { USD: "$", EUR: "€", HKD: "HK$", GBP: "£", GBp: "p", JPY: "¥", CNY: "¥", KRW: "₩", CHF: "CHF" };
+  if (!code) return "";
+  return m[code] || code;
+}
+function withCur(n, cur, d) {
+  const s = fmt(n, d);
+  return cur ? s + " " + cur : s;
+}
+function condText(c, cur) {
   const v = c.wert;
   switch (c.typ) {
-    case "kurs_unter": return `Kurs ≤ ${fmt(v)}`;
-    case "kurs_ueber": return `Kurs ≥ ${fmt(v)}`;
+    case "kurs_unter": return `Kurs ≤ ${withCur(v, cur)}`;
+    case "kurs_ueber": return `Kurs ≥ ${withCur(v, cur)}`;
     case "pct_unter_52w_hoch": return `≥ ${v}% unter 52W-Hoch`;
     case "tagesaenderung": return `Tagesänderung ${v > 0 ? "≥ +" : "≤ "}${v}%`;
     default: return c.typ;
@@ -281,15 +290,16 @@ function renderOverview(snap) {
   for (const a of snap.aktien) {
     const dc = a.daily_change_pct;
     const dcCls = dc == null ? "" : dc >= 0 ? "pos" : "neg";
+    const cur = curSym(a.waehrung);
     let trigs = "";
     (a.trigger || []).forEach((t) => {
       let body;
       if (t.typ === "kombi") {
         const subs = (t.bedingungen || []).map((c) =>
-          `${c.erfuellt ? "✓" : "·"} ${condText(c)}`).join(" &nbsp; ");
+          `${c.erfuellt ? "✓" : "·"} ${condText(c, cur)}`).join(" &nbsp; ");
         body = `<b>Kombi (UND):</b> ${subs}`;
       } else {
-        body = `<b>${TRIGGER_TYPEN[t.typ] || t.typ}:</b> ${condText({ typ: t.typ, wert: t.wert })}`;
+        body = `<b>${TRIGGER_TYPEN[t.typ] || t.typ}:</b> ${condText({ typ: t.typ, wert: t.wert }, cur)}`;
       }
       trigs += `<div class="trig"><div class="trig-main">${body}
         ${t.notiz ? `<div class="trig-note">– ${t.notiz}</div>` : ""}</div>
@@ -298,11 +308,11 @@ function renderOverview(snap) {
     root.insertAdjacentHTML("beforeend", `
       <div class="card ${a.fehler ? "err" : ""}">
         <div class="stock-head">
-          <div><span class="stock-name">${a.name}</span> <span class="ticker">${a.symbol}</span></div>
-          <div class="price">${a.fehler ? "⚠️ keine Daten" : fmt(a.price)}</div>
+          <div><span class="stock-name">${a.name}</span> <span class="ticker">${a.symbol}${cur ? " · " + cur : ""}</span></div>
+          <div class="price">${a.fehler ? "⚠️ keine Daten" : withCur(a.price, cur)}</div>
         </div>
         ${a.fehler ? "" : `<div class="metrics">
-          <span>52W-Hoch: <b>${fmt(a.high_52w)}</b></span>
+          <span>52W-Hoch: <b>${withCur(a.high_52w, cur)}</b></span>
           <span>unter Hoch: <b>${fmt(a.pct_below_52w_high, 1)}%</b></span>
           <span>Tag: <b class="${dcCls}">${dc == null ? "–" : (dc >= 0 ? "+" : "") + fmt(dc, 2) + "%"}</b></span>
         </div>`}
