@@ -106,7 +106,6 @@
 
   <div class="row" style="margin-bottom:12px;">
     <button id="reload" class="secondary">🔄 Neu laden</button>
-    <button id="runCheck" class="secondary">▶️ Jetzt prüfen</button>
   </div>
 
   <div id="status"></div>
@@ -127,7 +126,7 @@
       <span id="dirty" class="hidden" style="color:var(--amber);font-weight:700;font-size:0.85rem;">● Ungespeicherte Änderungen</span>
     </div>
     <p class="sub">Speichern schreibt <code>watchlist.yaml</code> direkt ins Repo. Der naechste
-      geplante Lauf (alle 15 Min) nutzt dann die neuen Trigger – oder klicke „Jetzt prüfen".</p>
+      geplante Lauf (alle 15 Min) nutzt dann die neuen Trigger.</p>
   </div>
 
 <script>
@@ -298,7 +297,8 @@ function statusBadge(t) {
   return `<span class="badge b-armed">scharf</span>`;
 }
 function renderOverview(snap) {
-  $("standInfo").textContent = "Stand: " + new Date(snap.stand_utc).toLocaleString("de-DE") + " (letzter Lauf)";
+  $("standInfo").textContent = "Stand: " + new Date(snap.stand_utc).toLocaleString("de-DE")
+    + " (letzter Lauf) · zuletzt geladen " + new Date().toLocaleTimeString("de-DE");
   const root = $("overview"); root.innerHTML = "";
   if (!snap.aktien || !snap.aktien.length) { root.innerHTML = `<div class="card">Keine Aktien.</div>`; return; }
   for (const a of snap.aktien) {
@@ -488,26 +488,11 @@ $("saveWatchlist").onclick = async () => {
     });
     await reloadAll();
     setDirty(false);
-    setStatus("✓ Watchlist in GitHub gespeichert. Der Editor zeigt jetzt den gespeicherten Stand. Neue/gelöschte Titel erscheinen in der Übersicht erst nach dem nächsten Lauf (oder per 'Jetzt prüfen').", "ok");
+    setStatus("✓ Watchlist in GitHub gespeichert. Der Editor zeigt jetzt den gespeicherten Stand. Neue/gelöschte Titel erscheinen in der Übersicht erst nach dem nächsten Lauf (alle 15 Min).", "ok");
   } catch (e) {
     setStatus("Speichern fehlgeschlagen: " + e.message, "bad");
   } finally {
     btn.disabled = false;
-  }
-};
-
-// ---------- Workflow anstossen ----------
-$("runCheck").onclick = async () => {
-  setStatus("Starte Workflow …");
-  try {
-    const s = settings();
-    await gh(`/actions/workflows/check.yml/dispatches`, {
-      method: "POST",
-      body: JSON.stringify({ ref: s.branch }),
-    });
-    setStatus("✓ Workflow gestartet. Daten in ~1–2 Min aktualisiert – dann per 'Neu laden'.", "ok");
-  } catch (e) {
-    setStatus("Workflow-Start fehlgeschlagen (Token braucht Actions: read/write): " + e.message, "bad");
   }
 };
 
