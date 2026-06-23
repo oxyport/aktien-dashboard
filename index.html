@@ -134,11 +134,26 @@ const $ = (id) => document.getElementById(id);
 let watchlist = { aktien: [] };   // Arbeitskopie fuer den Editor
 let watchlistSha = null;
 
+// Jeden unbehandelten Fehler sichtbar machen (statt "es passiert nichts").
+window.addEventListener("error", (e) => {
+  try { setStatus("JS-Fehler: " + (e.message || e), "bad"); } catch (_) {}
+});
+
+// Robuster Speicher: faellt auf In-Memory zurueck, wenn localStorage blockiert
+// ist (Safari Privatmodus, Content-Blocker). So funktioniert das Dashboard
+// zumindest fuer die laufende Sitzung weiter.
+const memStore = {};
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return (k in memStore) ? memStore[k] : null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { memStore[k] = v; return false; } return true; },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} delete memStore[k]; },
+};
+
 // ---------- Einstellungen ----------
 function loadSettings() {
-  $("repo").value = localStorage.getItem("wl_repo") || "oxyport/aktien-watchlist";
-  $("branch").value = localStorage.getItem("wl_branch") || "main";
-  $("token").value = localStorage.getItem("wl_token") || "";
+  $("repo").value = store.get("wl_repo") || "oxyport/aktien-watchlist";
+  $("branch").value = store.get("wl_branch") || "main";
+  $("token").value = store.get("wl_token") || "";
 }
 function settings() {
   return {
@@ -149,14 +164,16 @@ function settings() {
 }
 $("saveSettings").onclick = () => {
   const s = settings();
-  localStorage.setItem("wl_repo", s.repo);
-  localStorage.setItem("wl_branch", s.branch);
-  localStorage.setItem("wl_token", s.token);
-  setStatus("Einstellungen gespeichert.", "ok");
+  if (!s.repo || !s.token) { setStatus("Repo und Token bitte ausfüllen.", "bad"); return; }
+  const ok1 = store.set("wl_repo", s.repo);
+  store.set("wl_branch", s.branch);
+  const ok2 = store.set("wl_token", s.token);
+  if (ok1 && ok2) setStatus("Einstellungen gespeichert.", "ok");
+  else setStatus("Hinweis: Browser blockiert dauerhaftes Speichern – gilt nur für diese Sitzung.", "warn");
   reloadAll();
 };
 $("forgetToken").onclick = () => {
-  localStorage.removeItem("wl_token"); $("token").value = "";
+  store.del("wl_token"); $("token").value = "";
   setStatus("Token entfernt.", "warn");
 };
 
@@ -314,7 +331,7 @@ function triggerEditor(ai, ti, t) {
         <select data-ai="${ai}" data-ti="${ti}" data-f="typ">${opts}</select></div>
       <div class="grow" data-wertbox style="${isKombi ? "display:none;" : ""}">
         <label>Wert</label>
-        <input type="number" step="any" value="${t.wert ?? ""}" data-ai="${ai}" data-ti="${ti}" data-f="wert" /></div>
+        <input type="number" step="any" value="${t.wert == null ? "" : t.wert}" data-ai="${ai}" data-ti="${ti}" data-f="wert" /></div>
       <button class="danger" data-deltrig="${ai}:${ti}" style="align-self:flex-end;">×</button>
     </div>
     <label>Notiz</label>
@@ -337,7 +354,7 @@ function condEditor(ai, ti, ci, c) {
     `<option value="${k}" ${c.typ === k ? "selected" : ""}>${v}</option>`).join("");
   div.innerHTML = `
     <select data-cai="${ai}" data-cti="${ti}" data-cci="${ci}" data-cf="typ" class="grow">${opts}</select>
-    <input type="number" step="any" value="${c.wert ?? ""}" data-cai="${ai}" data-cti="${ti}" data-cci="${ci}" data-cf="wert" class="grow" placeholder="Wert" />
+    <input type="number" step="any" value="${c.wert == null ? "" : c.wert}" data-cai="${ai}" data-cti="${ti}" data-cci="${ci}" data-cf="wert" class="grow" placeholder="Wert" />
     <button class="danger" data-delcond="${ai}:${ti}:${ci}">×</button>`;
   return div;
 }
