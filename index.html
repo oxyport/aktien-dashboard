@@ -433,7 +433,7 @@ $("saveWatchlist").onclick = async () => {
         sha, branch: s.branch,
       }),
     });
-    setStatus("✓ Gespeichert. Beim nächsten Lauf aktiv (oder „Jetzt prüfen").", "ok");
+    setStatus("✓ Gespeichert. Beim nächsten Lauf aktiv (oder per 'Jetzt prüfen').", "ok");
     await reloadAll();
   } catch (e) {
     setStatus("Speichern fehlgeschlagen: " + e.message, "bad");
@@ -449,7 +449,7 @@ $("runCheck").onclick = async () => {
       method: "POST",
       body: JSON.stringify({ ref: s.branch }),
     });
-    setStatus("✓ Workflow gestartet. Daten in ~1–2 Min aktualisiert – dann „Neu laden".", "ok");
+    setStatus("✓ Workflow gestartet. Daten in ~1–2 Min aktualisiert – dann per 'Neu laden'.", "ok");
   } catch (e) {
     setStatus("Workflow-Start fehlgeschlagen (Token braucht Actions: read/write): " + e.message, "bad");
   }
