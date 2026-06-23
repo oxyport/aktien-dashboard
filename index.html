@@ -297,8 +297,7 @@ function statusBadge(t) {
   return `<span class="badge b-armed">scharf</span>`;
 }
 function renderOverview(snap) {
-  $("standInfo").textContent = "Stand: " + new Date(snap.stand_utc).toLocaleString("de-DE")
-    + " (letzter Lauf) · zuletzt geladen " + new Date().toLocaleTimeString("de-DE");
+  $("standInfo").textContent = "Kurse abgerufen: " + new Date(snap.stand_utc).toLocaleString("de-DE");
   const root = $("overview"); root.innerHTML = "";
   if (!snap.aktien || !snap.aktien.length) { root.innerHTML = `<div class="card">Keine Aktien.</div>`; return; }
   for (const a of snap.aktien) {
